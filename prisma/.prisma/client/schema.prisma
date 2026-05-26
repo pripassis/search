@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = ".prisma/client"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+}
+
+enum LibraryItemType {
+  DRIVE_FILE
+  DRIVE_DOC
+  DRIVE_SHEET
+  DRIVE_SLIDE
+  PDF
+  HTML
+  JS
+  SHELL
+  ARCHIVE
+  UNKNOWN
+}
+
+enum LibraryItemStatus {
+  DISCOVERED
+  VERIFIED
+  BLOCKED
+}
+
+enum IndexJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum IndexSourceKind {
+  SEARCH_ENGINE
+  MANUAL
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(EDITOR)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model IndexSource {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  query     String
+  kind      IndexSourceKind @default(SEARCH_ENGINE)
+  enabled   Boolean         @default(true)
+  notes     String?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  terms IndexTerm[]
+  jobs  IndexJob[]
+  items LibraryItem[]
+}
+
+model IndexTerm {
+  id         String   @id @default(cuid())
+  term       String   @unique
+  enabled    Boolean  @default(true)
+  sourceHint String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sourceId String?
+  source   IndexSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  jobs     IndexJob[]
+}
+
+model IndexJob {
+  id           String         @id @default(cuid())
+  term         String
+  query        String
+  status       IndexJobStatus @default(QUEUED)
+  resultCount  Int            @default(0)
+  errorMessage String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  termId       String?
+  termRelation IndexTerm?   @relation(fields: [termId], references: [id], onDelete: SetNull)
+  sourceId     String?
+  source       IndexSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+}
+
+model LibraryItem {
+  id            String            @id @default(cuid())
+  title         String
+  originalUrl   String            @unique
+  normalizedUrl String            @unique
+  fileId        String?
+  estimatedType LibraryItemType   @default(UNKNOWN)
+  origin        String
+  status        LibraryItemStatus @default(DISCOVERED)
+  extension     String?
+  downloadUrl   String?
+  previewPolicy String            @default("download-only")
+  summary       String?
+  discoveredAt  DateTime          @default(now())
+  indexedAt     DateTime          @updatedAt
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  sourceId String?
+  source   IndexSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([estimatedType, status])
+  @@index([origin])
+  @@index([discoveredAt])
+  @@index([extension])
+}
